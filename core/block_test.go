@@ -1,65 +1,48 @@
 package core
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
+	"github.com/LeiZhou-97/blockchain/crypto"
 	"github.com/LeiZhou-97/blockchain/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHeader_Encode_Decode(t *testing.T) {
-	h := &Header{
-		Version:   1,
-		PrevBlock: types.RandomHash(),
+
+func randomBlock(height uint32) *Block {
+	header := &Header{
+		Version: 1,
+		PrevBlockHash: types.RandomHash(),
+		Height: height,
 		Timestamp: time.Now().UnixNano(),
-		Height:    10,
-		Nonce:     989394,
 	}
 
-	buf := &bytes.Buffer{}
-	assert.Nil(t, h.EncodeBinary(buf))
-
-	hDecode := &Header{}
-	assert.Nil(t, hDecode.DecodeBinary(buf))
-	assert.Equal(t, h, hDecode)
+	tx := Transaction{
+		Data: []byte("foo"),
+	}
+	return NewBlock(header, []Transaction{tx})
 }
 
-func TestBlock_Encode_Decode(t *testing.T) {
-	b := &Block{
-		Header: Header{
-			Version:   1,
-			PrevBlock: types.RandomHash(),
-			Timestamp: time.Now().UnixNano(),
-			Height:    10,
-			Nonce:     989394,
-		},
-		Transactions: nil,
-	}
+func TestSignBlock(t *testing.T) {
+	privkey := crypto.GeneratePrivateKey()
+	b := randomBlock(0)
 
+	assert.Nil(t, b.Sign(privkey))
+	assert.NotNil(t, b.Signature)
 
-	buf := &bytes.Buffer{}
-	assert.Nil(t, b.EncodeBinary(buf))
-
-	blk := &Block{}
-	assert.Nil(t, blk.DecodeBinary(buf))
-	assert.Equal(t, b, blk)
 }
 
-func TestBlockHash(t *testing.T) {
-	b := &Block{
-		Header: Header{
-			Version:   1,
-			PrevBlock: types.RandomHash(),
-			Timestamp: time.Now().UnixNano(),
-			Height:    10,
-			Nonce:     989394,
-		},
-		Transactions: nil,
-	}
-	
+func TestVerifyBlock(t *testing.T) {
+	privkey := crypto.GeneratePrivateKey()
+	b := randomBlock(0)
 
-	h := b.Hash()
-	assert.False(t, h.IsZero())
+	assert.Nil(t, b.Sign(privkey))
+	assert.Nil(t, b.Verify())
+
+
+	//TODO
+	// edit header
+	// b.Height = 100
+	// assert.NotNil(t, b.Verify())
 }
