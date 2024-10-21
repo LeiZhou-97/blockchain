@@ -5,6 +5,7 @@ import "io"
 type Transaction struct {
 	Data []byte
 
+
 }
 
 func (tx *Transaction) DecodeBinary(r io.Reader) error {
