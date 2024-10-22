@@ -29,7 +29,7 @@ func main() {
 		}
 	}()
 
-	opts := network.ServerOpts {
+	opts := network.ServerOpts{
 		Transports: []network.Transport{trlocal},
 	}
 

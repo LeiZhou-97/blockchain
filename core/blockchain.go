@@ -2,26 +2,28 @@ package core
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
 
 type BlockChain struct {
-	store Storage
-	headers []*Header
+	store     Storage
+	lock      sync.RWMutex
+	headers   []*Header
 	validator Validator
 }
 
 func NewBlockChain(genesis *Block) (*BlockChain, error) {
 	bc := &BlockChain{
 		headers: []*Header{},
-		store: NewMemStore(),	
+		store:   NewMemStore(),
 	}
 
 	bc.validator = NewBlockValidator(bc)
 
 	err := bc.addBlockWithoutValidation(genesis)
-	
+
 	return bc, err
 }
 
@@ -42,6 +44,8 @@ func (bc *BlockChain) GetHeader(height uint32) (*Header, error) {
 		return nil, fmt.Errorf("height (%d) too high", height)
 	}
 
+	bc.lock.Lock()
+	defer bc.lock.Unlock()
 	return bc.headers[int(height)], nil
 }
 
@@ -50,14 +54,20 @@ func (bc *BlockChain) HasBlock(height uint32) bool {
 }
 
 func (bc *BlockChain) Height() uint32 {
-	return uint32(len(bc.headers)-1)
+	bc.lock.RLock()
+	defer bc.lock.RUnlock()
+
+	return uint32(len(bc.headers) - 1)
 }
 
 func (bc *BlockChain) addBlockWithoutValidation(b *Block) error {
+	bc.lock.Lock()
 	bc.headers = append(bc.headers, b.Header)
+	bc.lock.Unlock()
+
 	logrus.WithFields(logrus.Fields{
 		"height": b.Height,
-		"hash": b.Hash(BlockHasher{}),
+		"hash":   b.Hash(BlockHasher{}),
 	}).Info("adding new block")
 	return bc.store.Put(b)
 }
