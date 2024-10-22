@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/LeiZhou-97/blockchain/crypto"
 	"github.com/LeiZhou-97/blockchain/types"
@@ -17,6 +16,8 @@ type Transaction struct {
 
 	// cached version of the tx data hash
 	hash types.Hash
+	// firstseen is the timestamp of when this tx is first seen locally
+	firstSeen int64
 }
 
 func NewTransaction(data []byte) *Transaction {
@@ -55,9 +56,18 @@ func (tx *Transaction) Verify() error {
 	return nil
 }
 
-func (tx *Transaction) DecodeBinary(r io.Reader) error {
-	return nil
+func (tx *Transaction) Decode(dec Decoder[*Transaction]) error {
+	return dec.Decode(tx)
 }
-func (tx *Transaction) EncodeBinary(w io.Writer) error {
-	return nil
+
+func (tx *Transaction) Encode(enc Encoder[*Transaction]) error {
+	return enc.Encode(tx)
+}
+
+func (tx *Transaction) SetFirstSeen(t int64) {
+	tx.firstSeen = t
+}
+
+func (tx *Transaction) FirstSeen() int64 {
+	return tx.firstSeen
 }
