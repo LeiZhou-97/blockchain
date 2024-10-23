@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"math/rand"
 	"strconv"
 	"time"
@@ -20,17 +19,16 @@ import (
 // Keypair
 
 func main() {
-	fmt.Println("hello, world")
 
 	trlocal := network.NewLocalTransport("LOCAL")
 	trRemote := network.NewLocalTransport("REMOTE")
+	// trc := network.NewLocalTransport("C")
 
 	trlocal.Connect(trRemote)
 	trRemote.Connect(trlocal)
 
 	go func() {
 		for {
-			// trRemote.SendMessage(trlocal.Addr(), []byte("hello!"))
 			if err := sendTransaction(trRemote, trlocal.Addr()); err != nil {
 				logrus.Error(err)
 			}
