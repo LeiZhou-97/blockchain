@@ -14,7 +14,8 @@ type MessageType byte
 
 const (
 	MessageTypeTx MessageType = 0x1
-	MessageTypeBlock 
+	MessageTypeBlock MessageType = 0x2
+	MessageTypeGetBlocks MessageType = 0x3
 )
 
 type RPC struct {
@@ -68,6 +69,15 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodeMessage, error) {
 				From: rpc.From,
 				Data: tx,
 			}, nil
+		case MessageTypeBlock:
+			b := new(core.Block)	
+			if err := b.Decode(core.NewGobBlockDecoder(bytes.NewReader(msg.Data))); err != nil {
+				return nil, err
+			}
+			return &DecodeMessage{
+				From: rpc.From,
+				Data: b,
+			}, nil
 		default:
 			return nil, fmt.Errorf("invalid message header %x", msg.Header)
 	}
@@ -75,5 +85,5 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodeMessage, error) {
 
 
 type RPCProcessor interface {
-	ProcessTransaction(*DecodeMessage) error
+	ProcessMessage(*DecodeMessage) error
 }
