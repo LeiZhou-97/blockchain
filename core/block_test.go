@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -29,6 +30,16 @@ func TestVerifyBlock(t *testing.T) {
 	// edit header
 	// b.Height = 100
 	// assert.NotNil(t, b.Verify())
+}
+
+func TestDecodeEncode(t *testing.T) {
+	b := randomBlock(t, 1, types.Hash{})
+	buf := &bytes.Buffer{}
+	assert.Nil(t, b.Encode(NewGobBlockEncoder(buf)))
+
+	bDec := new(Block)
+	assert.Nil(t, bDec.Decode(NewGobBlockDecoder(buf)))
+	assert.Equal(t, b, bDec)
 }
 
 func randomBlock(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
