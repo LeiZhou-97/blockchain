@@ -1,9 +1,11 @@
 package core
 
 import (
+	"os"
 	"testing"
 
 	"github.com/LeiZhou-97/blockchain/types"
+	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,7 +59,7 @@ func TestAddBlockToHigh(t *testing.T) {
 }
 
 func newBlockChainWithGenesis(t *testing.T) *BlockChain {
-	bc, err := NewBlockChain(randomBlock(t, 0, types.Hash{}))
+	bc, err := NewBlockChain(log.NewLogfmtLogger(os.Stderr), randomBlock( t, 0, types.Hash{}))
 	assert.Nil(t, err)
 	return bc
 }
