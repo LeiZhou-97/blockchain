@@ -38,6 +38,14 @@ func (bc *BlockChain) AddBlock(b *Block) error {
 	if err := bc.validator.ValidateBlock(b); err != nil {
 		return err
 	}
+	for _, tx := range b.Transactions {
+		bc.logger.Log("msg", "executing code", "hash", tx.Hash(&TxHasher{}))
+		vm := NewVM(tx.Data)
+		if err := vm.Run(); err != nil {
+			return err
+		}
+		bc.logger.Log("vm stack value", vm.data[vm.stack.sp])
+	}
 	return bc.addBlockWithoutValidation(b)
 }
 

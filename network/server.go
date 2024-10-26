@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ var defaultBlockTime = 5 * time.Second
 
 type ServerOpts struct {
 	ID            string
+	Transport     Transport
 	Logger        log.Logger
 	RPCDecodeFunc RPCDecodeFunc
 	RPCProcessor  RPCProcessor
@@ -111,6 +113,10 @@ func (s *Server) ProcessMessage(dmsg *DecodeMessage) error {
 		return s.processTransaction(t)
 	case *core.Block:
 		return s.processBlock(t)
+	case *GetStatusMessage:
+		return s.processGetStatusMessage(dmsg.From, t)
+	case *StatusMessage:
+		return s.processStatusMessage(dmsg.From, t)
 	}
 	return nil
 }
@@ -121,6 +127,18 @@ func (s *Server) broadcast(payload []byte) error {
 			return err
 		}
 	}
+	return nil
+}
+
+
+func (s *Server) processStatusMessage(from NetAddr, msg *StatusMessage) error {
+	fmt.Printf("received status msg from %s => %+v\n", from, msg)
+
+	return nil
+}
+
+func (s *Server) processGetStatusMessage(from NetAddr, msg *GetStatusMessage) error {
+	fmt.Printf("received status msg from %s => %+v\n", from, msg)
 	return nil
 }
 
