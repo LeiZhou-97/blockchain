@@ -13,6 +13,8 @@ type BlockChain struct {
 	lock      sync.RWMutex
 	headers   []*Header
 	validator Validator
+	// TODO make this an interface
+	contractState *State
 }
 
 func NewBlockChain(l log.Logger, genesis *Block) (*BlockChain, error) {
@@ -20,6 +22,7 @@ func NewBlockChain(l log.Logger, genesis *Block) (*BlockChain, error) {
 		headers: []*Header{},
 		store:   NewMemStore(),
 		logger: l,
+		contractState: NewState(),
 	}
 
 	bc.validator = NewBlockValidator(bc)
@@ -40,11 +43,14 @@ func (bc *BlockChain) AddBlock(b *Block) error {
 	}
 	for _, tx := range b.Transactions {
 		bc.logger.Log("msg", "executing code", "hash", tx.Hash(&TxHasher{}))
-		vm := NewVM(tx.Data)
+		vm := NewVM(tx.Data, bc.contractState)
 		if err := vm.Run(); err != nil {
 			return err
 		}
-		bc.logger.Log("vm stack value", vm.data[vm.stack.sp])
+		
+		result := vm.stack.Pop()
+
+		bc.logger.Log("vm result", result)
 	}
 	return bc.addBlockWithoutValidation(b)
 }

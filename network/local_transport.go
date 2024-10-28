@@ -39,7 +39,9 @@ func (t *LocalTransport) Connect(tr Transport) error {
 func (t *LocalTransport) SendMessage(to NetAddr, payload []byte) error {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
-
+	if t.addr == to {
+		return nil
+	}
 	if peer, ok := t.peers[to]; !ok {
 		return fmt.Errorf("%s: could not send msg to %s", t.addr, to)
 	} else {
