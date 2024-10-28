@@ -12,6 +12,7 @@ type BlockChain struct {
 	store     Storage
 	lock      sync.RWMutex
 	headers   []*Header
+	blocks    []*Block
 	validator Validator
 	// TODO make this an interface
 	contractState *State
@@ -65,6 +66,16 @@ func (bc *BlockChain) GetHeader(height uint32) (*Header, error) {
 	return bc.headers[int(height)], nil
 }
 
+func (bc *BlockChain) GetBlock(height uint32) (*Block, error) {
+	if height > bc.Height() {
+		return nil, fmt.Errorf("height (%d) too high", height)
+	}
+
+	bc.lock.Lock()
+	defer bc.lock.Unlock()
+	return bc.blocks[int(height)], nil
+}
+
 func (bc *BlockChain) HasBlock(height uint32) bool {
 	return height <= bc.Height()
 }
@@ -79,6 +90,7 @@ func (bc *BlockChain) Height() uint32 {
 func (bc *BlockChain) addBlockWithoutValidation(b *Block) error {
 	bc.lock.Lock()
 	bc.headers = append(bc.headers, b.Header)
+	bc.blocks = append(bc.blocks, b)
 	bc.lock.Unlock()
 
 	bc.logger.Log(

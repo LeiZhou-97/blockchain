@@ -30,9 +30,16 @@ func main() {
 	// tr := network.NewTCPTransport(":3000")
 	// go tr.Start()
 
+	go func() {
+		time.Sleep(16 * time.Second)
+
+		lateNode := makeServer("LATE_NODE", nil, ":6000", []string{":4000"})
+		go lateNode.Start()
+	}()
+
 	time.Sleep(time.Second)
 
-	// go tcpTest()
+	tcpTest()
 	//
 	select {}
 }

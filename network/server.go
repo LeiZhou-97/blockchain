@@ -2,9 +2,11 @@ package network
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/LeiZhou-97/blockchain/core"
@@ -30,6 +32,7 @@ type ServerOpts struct {
 type Server struct {
 	ServerOpts
 	TCPTransport *TCPTransport
+	mu           sync.RWMutex
 	peerCh       chan *TCPPeer
 	peerMap      map[net.Addr]*TCPPeer
 	mempool      *TxPool
@@ -115,10 +118,15 @@ free:
 	for {
 		select {
 		case peer := <-s.peerCh:
-			// TODO: add mutex PLZ!!!
 			s.peerMap[peer.conn.RemoteAddr()] = peer
 			go peer.readLoop(s.rpcCh)
-			fmt.Printf("New peer: %+v\n", peer)
+
+			if err := s.sendGetStatusMessage(peer); err != nil {
+				s.Logger.Log("err:", err)
+				continue
+			}
+
+			s.Logger.Log("msg", "peer added to the server", "Outgoing", peer.Outgoing, "addr", peer.conn.RemoteAddr())
 		// consumer
 		case rpc := <-s.rpcCh:
 			msg, err := s.RPCDecodeFunc(rpc)
@@ -158,39 +166,68 @@ func (s *Server) ProcessMessage(dmsg *DecodeMessage) error {
 	case *core.Block:
 		return s.processBlock(t)
 	case *GetStatusMessage:
-		// return s.processGetStatusMessage(dmsg.From, t)
+		return s.processGetStatusMessage(dmsg.From, t)
 	case *StatusMessage:
-		// return s.processStatusMessage(dmsg.From, t)
+		return s.processStatusMessage(dmsg.From, t)
 	case *GetBlocksMessage:
 		return s.processGetBlocksMessage(dmsg.From, t)
+	case *BlocksMessage:
+		return s.processBlocksMessage(dmsg.From, t)
 	}
 	return nil
 }
 
 func (s *Server) processGetBlocksMessage(from net.Addr, data *GetBlocksMessage) error {
-	panic("here")
+	fmt.Printf("received getBlocksMessage => %+v\n", data)	
+
+	blocks := []*core.Block{}
+	
+	ourHeight := s.chain.Height()
+	if data.To == 0 {
+		for i:=0; i<int(ourHeight); i++ {
+			blcok, err := s.chain.GetBlock(uint32(i))
+			if err != nil {
+				return err
+			}
+
+			blocks = append(blocks, blcok)
+		}
+	}
+
+	blocksMsg := &BlocksMessage{
+		Blocks: blocks,
+	}
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(blocksMsg); err != nil {
+		return err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	msg := NewMessage(MessageTypeBlocks, buf.Bytes())
+	peer, ok := s.peerMap[from]
+	if !ok {
+		return fmt.Errorf("peer %s not known", peer.conn.RemoteAddr())
+	}
+	return peer.Send(msg.Bytes())
 }
 
-// TODO(@anthdm): Remove the logic from the main function to here
-// Normally Transport which is our own transport should do the trick.
-// func (s *Server) sendGetStatusMessage(tr Transport) error {
-//     var (
-//         getStatusMsg = new(GetStatusMessage)
-//         buf          = new(bytes.Buffer)
-//     )
-//     if err := gob.NewEncoder(buf).Encode(getStatusMsg); err != nil {
-//         return err
-//     }
-//     msg := NewMessage(MessageTypeGetStatus, buf.Bytes())
-//     if err := s.Transport.SendMessage(tr.Addr(), msg.Bytes()); err != nil {
-//         return err
-//     }
-//
-//     /// statusMessage
-//     return nil
-// }
+func (s *Server) sendGetStatusMessage(peer *TCPPeer) error {
+	var (
+		getStatusMsg = new(GetStatusMessage)
+		buf          = new(bytes.Buffer)
+	)
+	if err := gob.NewEncoder(buf).Encode(getStatusMsg); err != nil {
+		return err
+	}
+	msg := NewMessage(MessageTypeGetStatus, buf.Bytes())
+
+	/// ask to sync with peer
+	return peer.Send(msg.Bytes())
+}
 
 func (s *Server) broadcast(payload []byte) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for netAddr, peer := range s.peerMap {
 		if err := peer.Send(payload); err != nil {
 			fmt.Printf("peer send err => addr %s [err : %s]", netAddr, err)
@@ -199,41 +236,68 @@ func (s *Server) broadcast(payload []byte) error {
 	return nil
 }
 
-// func (s *Server) processStatusMessage(from NetAddr, data *StatusMessage) error {
-//     fmt.Printf("=> received status msg from %s => %+v\n", from, data)
-//     if data.CurrentHeight <= s.chain.Height() {
-//         s.Logger.Log("msg", "cannot sync blockHeight to low", "ourHeight", s.chain.Height(), "theirHeight", data.CurrentHeight, "addr", from)
-//         return nil
-//     }
-//
-//     // In this case we are 100% sure that the node has blocks heigher than us.
-//     getBlocksMessage := &GetBlocksMessage{
-//         From: s.chain.Height(),
-//         To:   0,
-//     }
-//     buf := new(bytes.Buffer)
-//     if err := gob.NewEncoder(buf).Encode(getBlocksMessage); err != nil {
-//         return err
-//     }
-//     msg := NewMessage(MessageTypeGetBlocks, buf.Bytes())
-//     return s.Transport.SendMessage(from, msg.Bytes())
-// }
+func (s *Server) processBlocksMessage(from net.Addr, data *BlocksMessage) error {
+	s.Logger.Log("msg", "received BLOCKS!!!!!!!!", "from", from)
 
-// func (s *Server) processGetStatusMessage(from NetAddr, data *GetStatusMessage) error {
-//     fmt.Printf("=> received Getstatus msg from %s => %+v\n", from, data)
-//     statusMessage := &StatusMessage{
-//         CurrentHeight: s.chain.Height(),
-//         ID:            s.ID,
-//     }
-//     buf := new(bytes.Buffer)
-//     if err := gob.NewEncoder(buf).Encode(statusMessage); err != nil {
-//         return err
-//     }
-//     msg := NewMessage(MessageTypeStatus, buf.Bytes())
-//     // response status msg
-//
-//     return s.Transport.SendMessage(from, msg.Bytes())
-// }
+	for _, block := range data.Blocks {
+		fmt.Printf("BlOCK with %+v\n", block.Header)
+		if err := s.chain.AddBlock(block); err != nil {
+			fmt.Errorf("late node err add block: %s\n", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) processStatusMessage(from net.Addr, data *StatusMessage) error {
+	fmt.Printf("=> received status msg from %s => %+v\n", from, data)
+	if data.CurrentHeight <= s.chain.Height() {
+		s.Logger.Log("msg", "cannot sync blockHeight to low", "ourHeight", s.chain.Height(), "theirHeight", data.CurrentHeight, "addr", from)
+		return nil
+	}
+
+	// In this case we are 100% sure that the node has blocks heigher than us.
+	getBlocksMessage := &GetBlocksMessage{
+		From: s.chain.Height(),
+		To:   0,
+	}
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(getBlocksMessage); err != nil {
+		return err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	msg := NewMessage(MessageTypeGetBlocks, buf.Bytes())
+	peer, ok := s.peerMap[from]
+	if !ok {
+		return fmt.Errorf("peer %s not known", peer.conn.RemoteAddr())
+	}
+	return peer.Send(msg.Bytes())
+}
+
+func (s *Server) processGetStatusMessage(from net.Addr, data *GetStatusMessage) error {
+	s.Logger.Log("msg", "received get status msg", "from", from)
+
+	statusMessage := &StatusMessage{
+		CurrentHeight: s.chain.Height(),
+		ID:            s.ID,
+	}
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(statusMessage); err != nil {
+		return err
+	}
+
+	// response status msg
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	msg := NewMessage(MessageTypeStatus, buf.Bytes())
+	peer, ok := s.peerMap[from]
+	if !ok {
+		return fmt.Errorf("peer %s not known", peer.conn.RemoteAddr())
+	}
+	return peer.Send(msg.Bytes())
+}
 
 func (s *Server) processBlock(b *core.Block) error {
 	if err := s.chain.AddBlock(b); err != nil {

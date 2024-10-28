@@ -51,6 +51,18 @@ func TestGetHeader(t *testing.T) {
 	}
 }
 
+func TestGetBlock(t *testing.T) {
+	bc := newBlockChainWithGenesis(t)
+	lenBlocks := 100
+	for i := 0; i < lenBlocks; i++ {
+		block := randomBlock(t, uint32(i+1), getPrevBlockHash(t, bc, uint32(i+1)))
+		assert.Nil(t, bc.AddBlock(block))
+		fetchedBlock, err := bc.GetBlock(block.Height)
+		assert.Nil(t, err)
+		assert.Equal(t, fetchedBlock, block)
+	}
+}
+
 func TestAddBlockToHigh(t *testing.T) {
 	bc := newBlockChainWithGenesis(t)
 
