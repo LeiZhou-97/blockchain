@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/LeiZhou-97/blockchain/types"
 	"github.com/go-kit/log"
 )
 
@@ -13,6 +14,8 @@ type BlockChain struct {
 	lock      sync.RWMutex
 	headers   []*Header
 	blocks    []*Block
+	txStore map[types.Hash]*Transaction
+	blockStore map[types.Hash]*Block
 	validator Validator
 	// TODO make this an interface
 	contractState *State
@@ -24,6 +27,8 @@ func NewBlockChain(l log.Logger, genesis *Block) (*BlockChain, error) {
 		store:   NewMemStore(),
 		logger: l,
 		contractState: NewState(),
+		blockStore: make(map[types.Hash]*Block),
+		txStore: make(map[types.Hash]*Transaction),
 	}
 
 	bc.validator = NewBlockValidator(bc)
@@ -66,6 +71,25 @@ func (bc *BlockChain) GetHeader(height uint32) (*Header, error) {
 	return bc.headers[int(height)], nil
 }
 
+
+func (bc *BlockChain) GetBlockByHash(hash types.Hash) (*Block, error) {
+	block, ok := bc.blockStore[hash]
+	if !ok {
+		return nil, fmt.Errorf("block with hash (%s) not exist", hash)
+	}
+	return block, nil
+}
+
+func (bc *BlockChain) GetTxByHash(hash types.Hash) (*Transaction, error) {
+	bc.lock.Lock()
+	defer bc.lock.Unlock()
+	tx, ok := bc.txStore[hash]
+	if !ok {
+		return nil, fmt.Errorf("could not find tx with hash (%s)", hash)
+	}
+	return tx, nil
+}
+
 func (bc *BlockChain) GetBlock(height uint32) (*Block, error) {
 	if height > bc.Height() {
 		return nil, fmt.Errorf("height (%d) too high", height)
@@ -91,7 +115,12 @@ func (bc *BlockChain) addBlockWithoutValidation(b *Block) error {
 	bc.lock.Lock()
 	bc.headers = append(bc.headers, b.Header)
 	bc.blocks = append(bc.blocks, b)
+	bc.blockStore[b.Hash(BlockHasher{})] = b
 	bc.lock.Unlock()
+
+	for _, tx := range b.Transactions {
+		bc.txStore[tx.Hash(TxHasher{})] = tx
+	}
 
 	bc.logger.Log(
 		"msg", "adding new block",

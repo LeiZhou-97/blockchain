@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LeiZhou-97/blockchain/api"
 	"github.com/LeiZhou-97/blockchain/core"
 	"github.com/LeiZhou-97/blockchain/crypto"
 	"github.com/LeiZhou-97/blockchain/types"
@@ -18,6 +19,7 @@ import (
 var defaultBlockTime = 5 * time.Second
 
 type ServerOpts struct {
+	APIListenAddr    string
 	SeedNodes     []string
 	ListenAddr    string
 	TCPTransport  *TCPTransport
@@ -57,6 +59,19 @@ func NewServer(opts ServerOpts) (*Server, error) {
 	chain, err := core.NewBlockChain(opts.Logger, genesisBlock())
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.APIListenAddr != "" {
+		apiServercfg := api.ServerConfig{
+			Logger: opts.Logger,
+			ListenAddr: opts.APIListenAddr,
+		}
+
+		apiServer := api.NewServer(apiServercfg, chain)
+
+		go apiServer.Start()
+
+		opts.Logger.Log("msg", "json api server running", "port", opts.APIListenAddr)
 	}
 
 	peerCh := make(chan *TCPPeer)

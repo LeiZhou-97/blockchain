@@ -7,6 +7,10 @@ import (
 
 type Hash [32]uint8
 
+func (h Hash) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}
+
 func (h Hash) IsZero() bool {
 	for i:=0; i<32; i++{
 		if h[i] !=0 {

@@ -12,3 +12,8 @@
 
 ## Hardcode smart contract
 1. predefined smart contract and execute in the EVM
+
+## JSON RPC
+1. fetch blocks and txx
+2. submit txx
+

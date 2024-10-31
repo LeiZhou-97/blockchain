@@ -19,13 +19,13 @@ import (
 
 func main() {
 	privKey := crypto.GeneratePrivateKey()
-	localNode := makeServer("LOCAL", &privKey, ":3000", []string{":4000"})
+	localNode := makeServer("LOCAL", &privKey, ":3000", []string{":4000"}, ":9999")
 	go localNode.Start()
 
-	remoteNode := makeServer("REMOTE_NODE", nil, ":4000", []string{":5000"})
+	remoteNode := makeServer("REMOTE_NODE", nil, ":4000", []string{":5000"}, "")
 	go remoteNode.Start()
 
-	remoteNodeB := makeServer("REMOTE_NODE_B", nil, ":5000", nil)
+	remoteNodeB := makeServer("REMOTE_NODE_B", nil, ":5000", nil, "")
 	go remoteNodeB.Start()
 	// tr := network.NewTCPTransport(":3000")
 	// go tr.Start()
@@ -33,19 +33,20 @@ func main() {
 	go func() {
 		time.Sleep(16 * time.Second)
 
-		lateNode := makeServer("LATE_NODE", nil, ":6000", []string{":4000"})
+		lateNode := makeServer("LATE_NODE", nil, ":6000", []string{":4000"}, "")
 		go lateNode.Start()
 	}()
 
 	time.Sleep(time.Second)
 
-	tcpTest()
+	txSender()
 	//
 	select {}
 }
 
-func makeServer(id string, pk *crypto.PrivateKey, addr string, seedNodes []string) *network.Server {
+func makeServer(id string, pk *crypto.PrivateKey, addr string, seedNodes []string, apiListenAddr string) *network.Server {
 	opts := network.ServerOpts{
+		APIListenAddr: apiListenAddr,
 		SeedNodes:  seedNodes,
 		ListenAddr: addr,
 		PrivateKey: pk,
@@ -60,18 +61,17 @@ func makeServer(id string, pk *crypto.PrivateKey, addr string, seedNodes []strin
 	return s
 }
 
-func tcpTest() {
+func txSender() {
 	conn, err := net.Dial("tcp", ":3000")
 	if err != nil {
 		panic(err)
 	}
 
 	privKey := crypto.GeneratePrivateKey()
-	data := []byte{0x01, 0x0a, 0x02, 0x0a, 0x0b}
+	data := []byte{0x03, 0x0a, 0x02, 0x0a, 0x0e}
 	tx := core.NewTransaction(data)
 	tx.Sign(privKey)
 	buf := &bytes.Buffer{}
-
 	if err := tx.Encode(core.NewGobTxEncoder(buf)); err != nil {
 		panic(err)
 	}
@@ -82,7 +82,6 @@ func tcpTest() {
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 // var transports = []network.Transport{

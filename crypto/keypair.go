@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"math/big"
 
 	"github.com/LeiZhou-97/blockchain/types"
@@ -51,6 +52,11 @@ func (k PublicKey) Address() types.Address {
 
 type Signature struct {
 	R,S *big.Int
+}
+
+func (sig Signature) String() string {
+	b := append(sig.S.Bytes(), sig.R.Bytes()...)
+	return hex.EncodeToString(b)
 }
 
 func (sig Signature) Verify(pubKey PublicKey, data []byte) bool {
